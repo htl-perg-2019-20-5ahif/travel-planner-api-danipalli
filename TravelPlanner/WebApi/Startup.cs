@@ -25,6 +25,11 @@ namespace WebApi
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddHttpClient("travelPlanner", c =>
+            {
+                c.BaseAddress = new Uri("https://cddataexchange.blob.core.windows.net/data-exchange/htl-homework/travelPlan.json");
+            });
+
             services.AddTransient<ITravelPlanner, TravelPlanner>();
             services.AddTransient<ITravelPlanParser, TravelPlanParser>();
 

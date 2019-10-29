@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Http;
 using System.Threading.Tasks;
 using Library;
 using Microsoft.AspNetCore.Mvc;
@@ -11,14 +12,16 @@ namespace WebApi.Controllers
     [Route("api")]
     public class TravelPlannerController : ControllerBase
     {
-        private static List<BusRoute> _BusRoutes;
-        private readonly ITravelPlanner parser;
-        private readonly ITravelPlanParser planner;
+        private static List<BusRoute> _busRoutes;
+        private readonly ITravelPlanner _planner;
+        private readonly ITravelPlanParser _parser;
+        private readonly IHttpClientFactory _clientFactory;
 
-        public TravelPlannerController(ITravelPlanner parser, ITravelPlanParser planner)
+        public TravelPlannerController(ITravelPlanner planner, ITravelPlanParser parser, IHttpClientFactory clientFactory)
         {
-            this.parser = parser;
-            this.planner = planner;
+            _parser = parser;
+            _planner = planner;
+            _clientFactory = clientFactory;
         }
 
 
@@ -26,38 +29,19 @@ namespace WebApi.Controllers
         [Route("travelPlan")]
         public async Task<IActionResult> GetRoute([FromQuery] string from, string to, string start)
         {
-            if(_BusRoutes == null || _BusRoutes.Count == 0)
+            if(_busRoutes == null || _busRoutes.Count == 0)
             {
-                var text = await ReadTextFile("travelPlan.json");
-                TravelPlanParser parser = new TravelPlanParser();
-                _BusRoutes = parser.ParseJson(text);
+                var client = _clientFactory.CreateClient("travelPlanner");
+                var travelPlanResponse = (await client.GetAsync("")).EnsureSuccessStatusCode();
+                var responseBody = await travelPlanResponse.Content.ReadAsStringAsync();
+                _busRoutes = _parser.ParseJson(responseBody);
             }
-
-            TravelPlanner planner = new TravelPlanner();
-            var result = planner.GetNextRoute(_BusRoutes, from, to, start);
+            var result = _planner.GetNextRoute(_busRoutes, from, to, start);
 
             if (result == null)
                 return NotFound();
             
             return Ok(result);
         }
-
-
-        public static async Task<string> ReadTextFile(string filename)
-        {
-            string text;
-            try
-            {
-                text = await System.IO.File.ReadAllTextAsync(filename);
-            }
-            catch (FileNotFoundException ex)
-            {
-                Console.Error.WriteLine("Json file not found!\n" + ex.ToString());
-                throw;
-            }
-
-            return text;
-        }
     }
-
 }
